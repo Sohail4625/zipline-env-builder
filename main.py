@@ -1,5 +1,7 @@
 import argparse
 from pathlib import Path
+import subprocess
+import sys
 
 
 def check_strategy_file(strategy_file_path: str) -> None:
@@ -11,6 +13,41 @@ def check_strategy_file(strategy_file_path: str) -> None:
         )
         exit(1)
     print("Strategy file found")
+
+
+def create_virtual_env(directory_path: Path) -> Path:
+    venv_directory = directory_path / "venv"
+    try:
+        print("Creating a virtual environment...")
+        subprocess.check_call([sys.executable, "-m", "venv", venv_directory])
+        print("Virtual environment created")
+        return venv_directory
+    except subprocess.CalledProcessError as e:
+        print("Failed to create a virtual environment", e)
+        exit(1)
+
+
+def install_dependencies(
+    virtual_directory: Path, zipline_version: str, requirements_file_path: str
+) -> None:
+    env_pip_path = virtual_directory / "bin" / "pip"
+    if zipline_version is None:
+        zipline_version = "3.1.1"
+    zipline_library = "zipline-reloaded" + f"=={zipline_version}"
+    try:
+        print("Installing libraries...")
+        subprocess.check_call(
+            [str(env_pip_path), "install", zipline_library, "ipython"]
+        )
+        if requirements_file_path is not None:
+            print("Installing libraries from the provided requirements.txt file...")
+            subprocess.check_call(
+                [str(env_pip_path), "install", "-r", requirements_file_path]
+            )
+        print("Libraries successfully installed")
+    except subprocess.CalledProcessError as e:
+        print("Error installing the libraries ", e)
+        exit(1)
 
 
 def create_new_directory(directory_name: str) -> Path:
@@ -48,9 +85,20 @@ def main() -> None:
     parser.add_argument(
         "--zipline-version", type=str, help="Version of zipline to be used"
     )
+    parser.add_argument(
+        "--requirements",
+        type=str,
+        help="Location of requirements.txt file to be installed into the environment",
+    )
     args = parser.parse_args()
     check_strategy_file(args.strategy_file)
-    create_new_directory(args.name)
+    new_directory_path = create_new_directory(args.name)
+    virtual_directory_path = create_virtual_env(directory_path=new_directory_path)
+    install_dependencies(
+        virtual_directory=virtual_directory_path,
+        zipline_version=args.zipline_version,
+        requirements_file_path=args.requirements,
+    )
 
 
 if __name__ == "__main__":
