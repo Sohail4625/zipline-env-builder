@@ -1,5 +1,7 @@
 import argparse
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -47,6 +49,45 @@ def install_dependencies(
         print("Libraries successfully installed")
     except subprocess.CalledProcessError as e:
         print("Error installing the libraries ", e)
+        exit(1)
+
+def generate_run_script(project_dir: str, strategy_file: str) -> None:
+    try:
+        print("Generating run script...")
+        bash_file = project_dir / "run_backtest.sh"
+        source_file_name = Path(strategy_file).name
+        bash_code = f"""#!/bin/bash
+# Activate the virtual environment
+source venv/bin/activate
+
+# Run the zipline backtest
+zipline run -f {source_file_name} --start 2016-1-1 --end 2018-1-1 --output /dev/null
+
+echo "Backtest script finished."
+        """
+        with open(bash_file, "w") as f:
+            f.write(bash_code)
+        os.chmod(bash_file, 0o755)
+        print("Script successfully generated as run_backtest.sh")
+    except Exception as e:
+        print("Error while generating run script", e)
+
+
+def copy_strategy_file(source_path: str, destination_dir: Path) -> None:
+    try:
+        source_path_pathlib = Path(source_path)
+        destination_path = destination_dir / source_path_pathlib.name
+        print("Copying strategy file from source to destination..")
+        shutil.copy(source_path, destination_path)
+        print("File copied successfully")
+    except FileNotFoundError as e:
+        print("Error: File not found", e)
+        exit(1)
+    except PermissionError as e:
+        print("Error: Permission denied", e)
+        exit(1)
+    except Exception as e:
+        print("Error copying file", e)
         exit(1)
 
 
@@ -99,6 +140,8 @@ def main() -> None:
         zipline_version=args.zipline_version,
         requirements_file_path=args.requirements,
     )
+    copy_strategy_file(args.strategy_file, new_directory_path)
+    generate_run_script(new_directory_path, args.strategy_file)
 
 
 if __name__ == "__main__":
